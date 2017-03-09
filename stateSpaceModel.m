@@ -8,20 +8,19 @@ clear; close all
     L = .0332;       % H motor inductance
     r = 16;          % ohms  motor resistance
 % physical parameters    
-    m1 = 5;          % kg mass of platform
-    m2 = 3;          % kg mass of puck
     k = 18500;       % N/m mechanical spring element
-    b1 = 1000;       % Ns/m
+    b1 = 500;       % Ns/m
     J = 11240;       % kgm^2 moment of inertial
-    b2 = 60*.002;       % Ns/m bearing friction
-    rWheel = 2.5;    % cm  drive wheel radius
+    b2 = 60*.02;     % Ns/m bearing friction
+    rWheel = .025;   % m  drive wheel radius
 % transformer
     TFrp = rWheel;     % transformer translation to rotation
     TFmotor = Kt;      % transformer rotation to electrical
 
 % stuff
 TFelement = (b1*TFrp^2*TFmotor)/(J*TFmotor*m2*TFrp^2*TFmotor); % calculating elements in A
-t = 0:.001:3;  % time array
+dt=.001;
+t = 0:dt:.3;  % time array
 
 %% define matricies
 x0 = [...
@@ -52,18 +51,23 @@ for j = 1:length(t)
     u(j) = 0;
 end
 y = lsim(sys,u,t,x0);
+a = cat(1,NaN, diff(y)/dt);
 
 %% plot things
 figure
 plot(t,y);
-%impulse(plant,t);
-hold on
+%impulse(sys,t);
 grid on
-%plot(t,u);
-title('Response');
+title('Velocity Response');
 xlabel('time (s)')
 ylabel('velocity of puck (m/s)')
 
+figure
+plot(t,a);
+grid on
+title('Acceleration Response');
+xlabel('time (s)')
+ylabel('acceleration of puck (m/s^2)')
 %figure(2)
 %rlocus(plant);
 
