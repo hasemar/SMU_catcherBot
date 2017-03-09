@@ -8,6 +8,8 @@ clear; close all
     L = .0332;       % H motor inductance
     r = 16;          % ohms  motor resistance
 % physical parameters    
+    m1 = 3;          % kg mass of puck
+    m2 = 5;          % kg mass of platform
     k = 18500;       % N/m mechanical spring element
     b1 = 500;       % Ns/m
     J = 11240;       % kgm^2 moment of inertial
