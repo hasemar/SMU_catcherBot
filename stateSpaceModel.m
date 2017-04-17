@@ -277,26 +277,28 @@ F = ... % the tf from "input" desired platform traj to "output" platform command
 
 % specify the desired parameters as per design requirements
 % (floor is position datum)
-g = -9.81;       % m/s^2
-x00 = 1.1292;    % m, initial puck height
-xcatch = 1.1;    % m, catch height
-x10 = 1.2;       % m, height of puck passing break beam
-x20 = 0.9144;    % m, height of platform when break beam tripped
-xf = .3048;      % m, final height
-tfin = 3;          % s, time when platform/puck at final height
-v10 = sqrt(2*g*(x00-x10));  % m/s, velocity of puck passing break beam
-v20 = 0;         % m/s, velocity of platform when puck passing break beam
+ft2m = @(x) x*12*2.54/100; % convert ft to m
+g = -9.81;          % m/s^2
+x00 = ft2m(6);      % m, initial puck height
+xcatch = ft2m(2.5); % m, catch height
+x10 = ft2m(5);      % m, height of puck passing break beam
+x20 = ft2m(4);      % m, height of platform when break beam tripped
+xf = ft2m(2);       % m, final height
+tfin = 3;           % s, time when platform/puck at final height
+v10 = -sqrt(2*abs(g)*abs(x10-x00));  % m/s, velocity of puck passing break beam
+v20 = 0;            % m/s, velocity of platform when puck passing break beam
 
+tp = 0:.0001:tfin; % have to simulate out to tfin, at least!
 
 % compute platform desired trajectory (from Mathemtatica-generated function)
-pt = zeros(length(tt),1);
-for i = 1:length(tt)
-    pt(i) = platform_trajectory_v(tt(i),tfin,xf,xcatch,x10,x20,v10,v20,g);
+pt = zeros(length(tp),1);
+for i = 1:length(tp)
+    pt(i) = platform_trajectory_v(tp(i),tfin,xf,xcatch,x10,x20,v10,v20,g);
 end
 
 % plot
 figure;
-plot(tt,pt)
+plot(tp,pt)
 
 %% Picone simulate by inserting "extra" poles
 % We work around the noncausality of the system by inserting fake poles way
@@ -311,12 +313,12 @@ Fp=vertcat(Fp{:},fakepoles);
 Fk=abs(prod(fakepoles))*Fzpk.k; % fix scale with product of fake poles
 F2=zpk(Fz,Fp,Fk); % new tf with fake poles inserted and gain corrected
 
-vCmnd = lsim(F2,pt,tt);
+vCmnd = lsim(F2,pt,tp);
 
 % plot velocity command
 figure;
-plot(tt,vCmnd); hold on; grid on;
-plot(tt,pt,'Color',[.5,.5,.5]);
+plot(tp,vCmnd); hold on; grid on;
+plot(tp,pt,'Color',[.5,.5,.5]);
 xlabel('time (s)')
 ylabel('velocity (m/s)')
 title('Velocity Command for Platform')
@@ -326,13 +328,13 @@ legend('Velocity command', 'Applied signal')
 %% simulate catch
 
 % get position command
-xCmnd = cumtrapz(tt,vCmnd);
-for j = 1:length(tt)
-    xPuck(j,1) = .5*g*tt(j)^2 + x00;
+xCmnd = cumtrapz(tp,vCmnd);
+for j = 1:length(tp)
+    xPuck(j,1) = .5*g*tp(j)^2 + x00;
 end
 figure;
-plot(tt,xCmnd); grid on; hold on
-plot(tt,xPuck);
+plot(tp,xCmnd); grid on; hold on
+plot(tp,xPuck);
 xlabel('time (s)')
 ylabel('position (m)')
 title('position response of platform')
