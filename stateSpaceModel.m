@@ -270,13 +270,57 @@ disp('total compensating controller:');
 disp(['Gc2 = ',num2str(Kp2),' + ',num2str(Ki2),'/s + s',num2str(Kd2)]);
 
 %% build platform to puck command relationship
+% I don't think we need this now ... we know the trajectory we want for the
+% platform. See the next section.
 Gspp = Gc1/Gc2*(1+Gc2*GsPID2);
 Hspp = (Gc2*GsPID)/(1+Gc2*GsPID2);
 
 Vrchng = tf(Gspp/(1+Hspp*Gspp));
 
+%% Picone input shaping trajectory tracking
+
+dt=0.001;
+tp = 0:dt:tf; % my sim time ... could probably streamline with Haseman time
+F = ... % the tf from "input" desired platform traj to "output" platform command
+        (1+Gc2*Gsplatform)/(Gc2*Gsplatform);
+
+% specify the desired parameters
+xcatch = 3; % m, catch height
+x10 = 5;    % m, height of puck passing break beam
+x20 = 4;    % m, height of platform when break beam tripped
+xf = 2;     % m, final height
+tf = 3;     % s, time when platform/puck at final height
+v10 = -1;   % m/s, velocity of puck passing break beam
+v20 = 0;    % m/s, velocity of platform when puck passing break beam
+g = -9.81;  % m/s^2
+
+% compute platform desired trajectory (from Mathemtatica-generated function)
+pt = zeros(length(tp),1);
+for i = 1:length(tp)
+    pt(i) = platform_trajectory_v(tp(i),tf,xf,xcatch,x10,x20,v10,v20,g);
+end
+
+% plot
+figure;
+plot(tp,pt)
+
+%% Picone simulate by inserting "extra" poles
+% We work around the noncausality of the system by inserting fake poles way
+% out on the negative real axis that have no significant effect on the
+% response. Note we have to compensate for the gain.
+fakepoles=[-400;-405;-410;-415];
+Fz=Fzpk.z;
+Fp=Fzpk.p;
+Fp=vertcat(Fp{:},fakepoles);
+Fk=abs(prod(fakepoles))*Fzpk.k; % fix scale with product of fake poles
+F2=zpk(Fz,Fp,Fk); % new tf with fake poles inserted and gain corrected
+
+% plot
+figure;
+lsim(F2,pt,tp) % here's the long-awaited velocity command!!!!
+
 %% velocity command formation
-g = 9.8;                 % m/s2
+% g = 9.8;                 % m/s2
 pltfrmDelay = .215;       % s
 catchTime = pltfrmDelay + .25;   % s
 VpuckCmd = importdata('Vpuckcmd.mat');
