@@ -279,20 +279,23 @@ Vrchng = tf(Gspp/(1+Hspp*Gspp));
 
 %% Picone input shaping trajectory tracking
 
-dt=0.001;
+% specify the desired parameters
+xcatch = .75;   % m, catch height
+x10 = 1.5;      % m, height of puck passing break beam
+x20 = 1.2;      % m, height of platform when break beam tripped
+xf = .3;        % m, final height
+tf = 3;         % s, time when platform/puck at final height
+v10 = -1;       % m/s, velocity of puck passing break beam
+v20 = 0;        % m/s, velocity of platform when puck passing break beam
+g = -9.81;      % m/s^2
+
+% simulation parameters
+dt=1e-5;
 tp = 0:dt:tf; % my sim time ... could probably streamline with Haseman time
+
+% here's the tf we need now
 F = ... % the tf from "input" desired platform traj to "output" platform command
         (1+Gc2*Gsplatform)/(Gc2*Gsplatform);
-
-% specify the desired parameters
-xcatch = 3; % m, catch height
-x10 = 5;    % m, height of puck passing break beam
-x20 = 4;    % m, height of platform when break beam tripped
-xf = 2;     % m, final height
-tf = 3;     % s, time when platform/puck at final height
-v10 = -1;   % m/s, velocity of puck passing break beam
-v20 = 0;    % m/s, velocity of platform when puck passing break beam
-g = -9.81;  % m/s^2
 
 % compute platform desired trajectory (from Mathemtatica-generated function)
 pt = zeros(length(tp),1);
@@ -308,6 +311,7 @@ plot(tp,pt)
 % We work around the noncausality of the system by inserting fake poles way
 % out on the negative real axis that have no significant effect on the
 % response. Note we have to compensate for the gain.
+Fzpk = zpk(F);
 fakepoles=[-400;-405;-410;-415];
 Fz=Fzpk.z;
 Fp=Fzpk.p;
