@@ -2,6 +2,7 @@
 clear; close all
 
 %% define vars
+
 % motor parameters
     Kt = 0.0967;        % Nm/A torque (from ServoSysCo spec sheet)
     %Kv = 105;          % V/rad/s back-emf constant
@@ -9,7 +10,7 @@ clear; close all
     R = 1.6;            % ohms  motor resistance (from ServoSysCo spec sheet)
     Jm = .05648;        % kgm^2 moment of inertial (from ServoSysCo spec sheet)
     b3 = 1.7e-5;        % Nms/rad motor damping (from ServoSysCo spec sheet)
-    Tau_m = .0089;      % s untill 62.3% to Vfinal 
+    
 % physical parameters    
     m1 = 3;             % kg mass of puck
     m2 = 5;             % kg mass of platform
@@ -24,7 +25,7 @@ clear; close all
     nb = 3;                  % number of bearings
     b1 = 250;                % Ns/m   damping coeff for pad
     b2 = nb*r*500;           % Nms/rad guide bearing friction  
-    %pitch = .005/(2*pi);     % m/rads  pitch of ball screw
+
 % transformer 
     TF12 = 2*pi*r;           % transformer translation to rotation
     TF34 = Kt;               % transformer rotation to electrical
@@ -33,9 +34,10 @@ clear; close all
 dt=.0001;
 t = 0:dt:1;                  % time array
 
+
 %% define matricies
 x0 = [...
-    -2.445;...    % Vm1
+    -2.445;...    % Vm1 (if platform did not move)
     0;...         % Vm2
     0;...         % Fk1
     0;...         % Tk2
@@ -65,27 +67,28 @@ C = [1,0,0,0,0,0;...    % Vm1
     0,0,0,0,1,0;...     % Wj 
     0,0,0,0,0,1];       % iL
           
-D = 0;                  %   
+D = 0;                  
 
 %% create state-space
 sys = ss(A,B,C,D);
 sys.InputName = 'Vs';
 sys.OutputName = {'Vm1';'Vm2';'Fk1';'Tk2';'Wj';'iL'};
 u = zeros(1,length(t));
-for j = 1:length(u)         % uncomment for step input
-    if u(j) < median(u)
-        u(j) = 24;
-    else
-        u(j) = 0;
-    end
-end
+
+% for j = 1:length(u)         % uncomment for step input
+%     if u(j) < median(u)
+%         u(j) = 24;
+%     else
+%         u(j) = 0;
+%     end
+% end
+
 y = lsim(sys,u,t,x0);
 a = cat(1,NaN, diff(y(:,1))/dt);
 
-% plot things
+% plot initial velocity response
 figure
 plot(t,y(:,1));    % velocity
-% impulse(sys,t);
 grid on
 hold on
 plot(t,y(:,2));
@@ -95,11 +98,11 @@ ylabel('velocity of puck (m/s)')
 legend('Vm1','Vm2')
 save2pdf('VelRes',gcf,300);
 
-% take "integral" of Vm1 for x position
+% position of puck
 x = cumtrapz(t,y(:,1));
 
 figure
-plot(t,x);      % position
+plot(t,x);      % initial position response
 grid on
 title('position')
 xlabel('time (s)')
@@ -107,7 +110,7 @@ ylabel('position (m)')
 save2pdf('PosRes',gcf,300);
 
 figure
-plot(t,a);      % acceleration
+plot(t,a);      % initial acceleration response
 grid on
 title('Acceleration Response');
 xlabel('time (s)')
@@ -132,7 +135,7 @@ sP = -33.2+97.2*1i;   % initial design point
 
 % simulate 
 sysP = feedback(KP*Gspuck,1);
-tt = 0:dt:1;
+tt = 0:dt:1;  % simulation time array
 yP = step(sysP,tt);
 Pinfo = stepinfo(yP,tt,yP(end));
 Pinfo 
@@ -247,8 +250,6 @@ yPID2 = step(sysPID2,tt);
 PIDinfo2 = stepinfo(yPID2,tt,yPID2(end));
 PIDinfo2 
 
-sys_accel = max(yPID2)/tt(find(yPID2 == max(yPID2)));
-
 figure;
 plot(tt,yP2,'r'); hold on;
 plot(tt,yPID2,'g');
@@ -269,45 +270,39 @@ disp(' ');
 disp('total compensating controller:');
 disp(['Gc2 = ',num2str(Kp2),' + ',num2str(Ki2),'/s + s',num2str(Kd2)]);
 
-%% build platform to puck command relationship
-% I don't think we need this now ... we know the trajectory we want for the
-% platform. See the next section.
-Gspp = Gc1/Gc2*(1+Gc2*GsPID2);
-Hspp = (Gc2*GsPID)/(1+Gc2*GsPID2);
-
-Vrchng = tf(Gspp/(1+Hspp*Gspp));
 
 %% Picone input shaping trajectory tracking
-
-dt=0.001;
-tp = 0:dt:tf; % my sim time ... could probably streamline with Haseman time
 F = ... % the tf from "input" desired platform traj to "output" platform command
         (1+Gc2*Gsplatform)/(Gc2*Gsplatform);
 
-% specify the desired parameters
-xcatch = 3; % m, catch height
-x10 = 5;    % m, height of puck passing break beam
-x20 = 4;    % m, height of platform when break beam tripped
-xf = 2;     % m, final height
-tf = 3;     % s, time when platform/puck at final height
-v10 = -1;   % m/s, velocity of puck passing break beam
-v20 = 0;    % m/s, velocity of platform when puck passing break beam
-g = -9.81;  % m/s^2
+% specify the desired parameters as per design requirements
+% (floor is position datum)
+g = -9.81;       % m/s^2
+x00 = 1.1292;    % m, initial puck height
+xcatch = 1.1;    % m, catch height
+x10 = 1.2;       % m, height of puck passing break beam
+x20 = 0.9144;    % m, height of platform when break beam tripped
+xf = .3048;      % m, final height
+tfin = 3;          % s, time when platform/puck at final height
+v10 = sqrt(2*g*(x00-x10));  % m/s, velocity of puck passing break beam
+v20 = 0;         % m/s, velocity of platform when puck passing break beam
+
 
 % compute platform desired trajectory (from Mathemtatica-generated function)
-pt = zeros(length(tp),1);
-for i = 1:length(tp)
-    pt(i) = platform_trajectory_v(tp(i),tf,xf,xcatch,x10,x20,v10,v20,g);
+pt = zeros(length(tt),1);
+for i = 1:length(tt)
+    pt(i) = platform_trajectory_v(tt(i),tfin,xf,xcatch,x10,x20,v10,v20,g);
 end
 
 % plot
 figure;
-plot(tp,pt)
+plot(tt,pt)
 
 %% Picone simulate by inserting "extra" poles
 % We work around the noncausality of the system by inserting fake poles way
 % out on the negative real axis that have no significant effect on the
 % response. Note we have to compensate for the gain.
+Fzpk = zpk(F);
 fakepoles=[-400;-405;-410;-415];
 Fz=Fzpk.z;
 Fp=Fzpk.p;
@@ -315,77 +310,33 @@ Fp=vertcat(Fp{:},fakepoles);
 Fk=abs(prod(fakepoles))*Fzpk.k; % fix scale with product of fake poles
 F2=zpk(Fz,Fp,Fk); % new tf with fake poles inserted and gain corrected
 
-% plot
-figure;
-lsim(F2,pt,tp) % here's the long-awaited velocity command!!!!
+vCmnd = lsim(F2,pt,tt);
 
-%% velocity command formation
-% g = 9.8;                 % m/s2
-pltfrmDelay = .215;       % s
-catchTime = pltfrmDelay + .25;   % s
-VpuckCmd = importdata('Vpuckcmd.mat');
-Vinit = -4.5;             % m/s
-decelRate = 4*g;
-
-% puck params
-puckInit = .3048;       % m puck initial position
-puckVfall = -g.*tt;
-xpuckfrf = cumtrapz(tt,puckVfall) + puckInit;
-VCmnd = NaN*ones(1,length(tt));
-for j = 1:length(tt)
-    if tt(j) < pltfrmDelay
-        VCmnd(j) = 0;
-    elseif tt(j) >= pltfrmDelay
-        VCmnd(j) = Vinit;
-    end
-end
-yCmnd = lsim(sysPID2,VCmnd,tt);
-t0 = 0;
-for j = 1:length(tt)
-    if yCmnd(j) < puckVfall(j)
-        index = j;
-        break
-    end
-end
-for k = index:length(tt)
-        VCmnd(k) = Vinit + decelRate*(t0*dt);
-        t0 = t0+1;
-       if VCmnd(k) > 0;
-            VCmnd(k:end) = 0;
-       end
-end
+% plot velocity command
 figure;
-plot(tt,VCmnd)
-grid on;
-title('Velocity Command')
+plot(tt,vCmnd); hold on; grid on;
+plot(tt,pt,'Color',[.5,.5,.5]);
 xlabel('time (s)')
 ylabel('velocity (m/s)')
-
-yCmnd = lsim(sysPID2,VCmnd,tt);     % re populate ysimulation
-
-%% simulate with velocity command
+title('Velocity Command for Platform')
+legend('Velocity command', 'Applied signal')
 
 
-% take "integral" for x position
-xCmnd = cumtrapz(tt,yCmnd);
-xCmnd = transpose(xCmnd);
+%% simulate catch
 
+% get position command
+xCmnd = cumtrapz(tt,vCmnd);
+for j = 1:length(tt)
+    xPuck(j,1) = .5*g*tt(j)^2 + x00;
+end
 figure;
-plot(tt,yCmnd); grid on; hold on
-plot(tt,puckVfall);
-xlabel('time (s)')
-ylabel('velocity (m/s)')
-title('velocity response of platform')
-legend('platform velocity','puck freefall','location','southeast')
-
-figure;
-plot(tt,xCmnd,'LineWidth',1.5); grid on; hold on;
-plot(tt,xpuckfrf)
-%plot(tc,puckCtch,'--r','LineWidth', 1.5);
+plot(tt,xCmnd); grid on; hold on
+plot(tt,xPuck);
 xlabel('time (s)')
 ylabel('position (m)')
 title('position response of platform')
 legend('platform','puck')
+
 
 
 
