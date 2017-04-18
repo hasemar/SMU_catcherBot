@@ -279,11 +279,11 @@ F = ... % the tf from "input" desired platform traj to "output" platform command
 % (floor is position datum)
 ft2m = @(x) x*12*2.54/100; % convert ft to m
 g = -9.81;          % m/s^2
-x00 = ft2m(6);      % m, initial puck height
+x00 = ft2m(4);      % m, initial puck height
 xcatch = ft2m(2.5); % m, catch height
-x10 = ft2m(5);      % m, height of puck passing break beam
-x20 = ft2m(4);      % m, height of platform when break beam tripped
-xf = ft2m(2);       % m, final height
+x10 = ft2m(4);      % m, height of puck passing break beam
+x20 = ft2m(3);      % m, height of platform when break beam tripped
+xf = ft2m(1);       % m, final height
 tfin = 3;           % s, time when platform/puck at final height
 v10 = -sqrt(2*abs(g)*abs(x10-x00));  % m/s, velocity of puck passing break beam
 v20 = 0;            % m/s, velocity of platform when puck passing break beam
@@ -299,6 +299,11 @@ end
 % plot
 figure;
 plot(tp,pt)
+xlabel('time (s)')
+ylabel('velocity (m/s)')
+title('Velocity Trajectory')
+
+
 
 %% Picone simulate by inserting "extra" poles
 % We work around the noncausality of the system by inserting fake poles way
@@ -322,23 +327,36 @@ plot(tp,pt,'Color',[.5,.5,.5]);
 xlabel('time (s)')
 ylabel('velocity (m/s)')
 title('Velocity Command for Platform')
-legend('Velocity command', 'Applied signal')
+legend('Velocity command', 'Applied signal','location','southeast')
 
 
 %% simulate catch
 
+pltSim = lsim(sysPID2,vCmnd,tp);
+
 % get position command
-xCmnd = cumtrapz(tp,vCmnd);
+xCmnd = cumtrapz(tp,pltSim) + x20;
 for j = 1:length(tp)
     xPuck(j,1) = .5*g*tp(j)^2 + x00;
 end
+
+figure;
+plot(tp,pltSim); grid on; hold on
+plot(tp,g*tp);
+xlabel('time (s)')
+ylabel('velocity (m/s)')
+title('velocity of platform')
+legend('platform','puck (free fall)')
+
 figure;
 plot(tp,xCmnd); grid on; hold on
 plot(tp,xPuck);
 xlabel('time (s)')
 ylabel('position (m)')
-title('position response of platform')
+title('position of platform')
 legend('platform','puck')
+
+
 
 
 

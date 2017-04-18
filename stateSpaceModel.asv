@@ -277,31 +277,39 @@ F = ... % the tf from "input" desired platform traj to "output" platform command
 
 % specify the desired parameters as per design requirements
 % (floor is position datum)
-g = -9.81;       % m/s^2
-x00 = 1.1292;    % m, initial puck height
-xcatch = 1.1;    % m, catch height
-x10 = 1.2;       % m, height of puck passing break beam
-x20 = 0.9144;    % m, height of platform when break beam tripped
-xf = .3048;      % m, final height
-tfin = 3;          % s, time when platform/puck at final height
-v10 = sqrt(2*g*(x00-x10));  % m/s, velocity of puck passing break beam
-v20 = 0;         % m/s, velocity of platform when puck passing break beam
+ft2m = @(x) x*12*2.54/100; % convert ft to m
+g = -9.81;          % m/s^2
+x00 = ft2m(4);      % m, initial puck height
+xcatch = ft2m(2.5); % m, catch height
+x10 = ft2m(3.9);      % m, height of puck passing break beam
+x20 = ft2m(3);      % m, height of platform when break beam tripped
+xf = ft2m(1);       % m, final height
+tfin = 3;           % s, time when platform/puck at final height
+v10 = -sqrt(2*abs(g)*abs(x10-x00));  % m/s, velocity of puck passing break beam
+v20 = 0;            % m/s, velocity of platform when puck passing break beam
 
+tp = 0:.0001:tfin; % have to simulate out to tfin, at least!
 
 % compute platform desired trajectory (from Mathemtatica-generated function)
-pt = zeros(length(tt),1);
-for i = 1:length(tt)
-    pt(i) = platform_trajectory_v(tt(i),tfin,xf,xcatch,x10,x20,v10,v20,g);
+pt = zeros(length(tp),1);
+for i = 1:length(tp)
+    pt(i) = platform_trajectory_v(tp(i),tfin,xf,xcatch,x10,x20,v10,v20,g);
 end
 
 % plot
 figure;
-plot(tt,pt)
+plot(tp,pt)
+xlabel('time (s)')
+ylabel('velocity (m/s)')
+title('Velocity Trajectory')
+
+
 
 %% Picone simulate by inserting "extra" poles
 % We work around the noncausality of the system by inserting fake poles way
 % out on the negative real axis that have no significant effect on the
 % response. Note we have to compensate for the gain.
+
 Fzpk = zpk(F);
 fakepoles=[-400;-405;-410;-415];
 Fz=Fzpk.z;
@@ -310,39 +318,46 @@ Fp=vertcat(Fp{:},fakepoles);
 Fk=abs(prod(fakepoles))*Fzpk.k; % fix scale with product of fake poles
 F2=zpk(Fz,Fp,Fk); % new tf with fake poles inserted and gain corrected
 
-vCmnd = lsim(F2,pt,tt);
+vCmnd = lsim(F2,pt,tp);
+
 % plot velocity command
 figure;
-plot(tt,cVmdn); hold on; grid on;
-plot(tt,pt);
+plot(tp,vCmnd); hold on; grid on;
+plot(tp,pt,'Color',[.5,.5,.5]);
 xlabel('time (s)')
 ylabel('velocity (m/s)')
-title('Velocity Command for Platform
-lsim(F2,pt,tt) % here's the long-awaited velocity command!!!!
+title('Velocity Command for Platform')
+legend('Velocity command', 'Applied signal','location','southeast')
 
 
-%% simulate with velocity command
+%% simulate catch
+
+pltSim = lsim(sysPID2,vCmnd,tp);
 
 % get position command
-xCmnd = cumtrapz(tt,yCmnd);
-xCmnd = transpose(xCmnd);
+xCmnd = cumtrapz(tp,pltSim) + x00;
+for j = 1:length(tp)
+    xPuck(j,1) = .5*g*tp(j)^2 + x00;
+end
 
 figure;
-plot(tt,yCmnd); grid on; hold on
-plot(tt,puckVfall);
+plot(tp,pltSim); grid on; hold on
+plot(tp,g*tp);
 xlabel('time (s)')
 ylabel('velocity (m/s)')
-title('velocity response of platform')
-legend('platform velocity','puck freefall','location','southeast')
+title('velocity of platform')
+legend('platform','puck (free fall)')
 
 figure;
-plot(tt,xCmnd,'LineWidth',1.5); grid on; hold on;
-plot(tt,xpuckfrf)
-%plot(tc,puckCtch,'--r','LineWidth', 1.5);
+plot(tp,xCmnd); grid on; hold on
+plot(tp,xPuck);
 xlabel('time (s)')
 ylabel('position (m)')
-title('position response of platform')
+title('position of platform')
 legend('platform','puck')
+
+
+
 
 
 
